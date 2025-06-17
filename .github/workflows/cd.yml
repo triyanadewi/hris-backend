@@ -120,9 +120,9 @@ jobs:
             fi
 
             # Generate APP_KEY if not set
-            if ! grep -q "APP_KEY=base64:" .env; then
-              echo "Generating APP_KEY..."
-              docker run --rm -v $(pwd):/app -w /app php:8.2-cli php -r "echo 'APP_KEY=base64:' . base64_encode(random_bytes(32)) . PHP_EOL;" >> .env
+            if ! grep -q "^APP_KEY=base64:" .env; then
+              echo "Generating APP_KEY with artisan..."
+              docker compose run --rm -e APP_ENV=production -v $(pwd):/app --workdir /app php php artisan key:generate --force
             fi
 
             # Building and starting the containers
