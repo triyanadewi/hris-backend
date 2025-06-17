@@ -1,0 +1,61 @@
+version: "3.8"
+
+services:
+    api:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: hris-api
+        ports:
+            - "8000:8000"
+        volumes:
+            - ./storage:/var/www/html/storage
+            - ./bootstrap/cache:/var/www/html/bootstrap/cache
+        networks:
+            - hris_network
+        restart: unless-stopped
+        depends_on:
+            postgres:
+                condition: service_healthy
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8000"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 40s
+
+    postgres:
+        image: postgres:15-alpine
+        container_name: hris-postgres
+        environment:
+            - POSTGRES_DB=${POSTGRES_DB}
+            - POSTGRES_USER=${POSTGRES_USER}
+            - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+            - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        networks:
+            - hris_network
+        restart: unless-stopped
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}",
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 30s
+        ports:
+            - "${DB_PORT:-5435}:5432"
+
+networks:
+    hris_network:
+        driver: bridge
+
+volumes:
+    api_data:
+        driver: local
+    postgres_data:
+        driver: local

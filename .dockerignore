@@ -1,0 +1,56 @@
+# Version control
+.git
+.gitignore
+
+# Dependencies (will be installed via composer)
+node_modules
+
+# Environment files - keep necessary ones
+.env.production
+.env.development
+.env.local
+secrets/
+# Keep these files
+!.env
+!.env.example
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Development logs (but keep directory structure)
+storage/logs/*.log
+
+# Development cache (but keep directory structure)  
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/testing/*
+storage/framework/views/*
+bootstrap/cache/*
+# Keep the directory structure files
+!storage/logs/.gitkeep
+!storage/framework/cache/.gitkeep
+!storage/framework/sessions/.gitkeep  
+!storage/framework/testing/.gitkeep
+!storage/framework/views/.gitkeep
+!bootstrap/cache/.gitkeep
+
+# Temporary files
+*.tmp
+*.temp
+
+# Documentation
+docs/
+
+# Development/testing files
+.phpunit.result.cache
+coverage/
+
+# Laravel development files
+.env.testing

@@ -1,23 +1,36 @@
-/.phpunit.cache
+# Environment files
+/.env
+/.env.*
+!/.env.example
+
+# Dependency directories
 /node_modules
+/vendor
+
+# Build & output directories
 /public/build
 /public/hot
 /public/storage
+
+# Storage & cache
+/.phpunit.cache
+/phpunit.result.cache
 /storage/*.key
 /storage/pail
-/vendor
-.env
-.env.backup
-.env.production
+
+# IDE & editor settings
+/.idea
+/.vscode
+/.fleet
+/.nova
+/.zed
 .phpactor.json
-.phpunit.result.cache
+
+# Homestead & config
 Homestead.json
 Homestead.yaml
+/auth.json
+
+# Log files
 npm-debug.log
 yarn-error.log
-/auth.json
-/.fleet
-/.idea
-/.nova
-/.vscode
-/.zed
