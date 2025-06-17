@@ -9,8 +9,8 @@ services:
         ports:
             - "8000:8000"
         volumes:
-            - ./storage:/var/www/html/storage
-            - ./bootstrap/cache:/var/www/html/bootstrap/cache
+            - storage_data:/var/www/html/storage
+            - cache_data:/var/www/html/bootstrap/cache
         networks:
             - hris_network
         restart: unless-stopped
@@ -58,4 +58,8 @@ volumes:
     api_data:
         driver: local
     postgres_data:
+        driver: local
+    storage_data:
+        driver: local
+    cache_data:
         driver: local
