@@ -28,9 +28,9 @@ services:
         image: postgres:15-alpine
         container_name: hris-postgres
         environment:
-            - POSTGRES_DB=${POSTGRES_DB}
-            - POSTGRES_USER=${POSTGRES_USER}
-            - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+            - POSTGRES_DB=${POSTGRES_DB:-hris_db}
+            - POSTGRES_USER=${POSTGRES_USER:-hris_user}
+            - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-hris_password}
             - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
         volumes:
             - postgres_data:/var/lib/postgresql/data
@@ -41,14 +41,14 @@ services:
             test:
                 [
                     "CMD-SHELL",
-                    "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}",
+                    "pg_isready -U ${POSTGRES_USER:-hris_user} -d ${POSTGRES_DB:-hris_db}",
                 ]
             interval: 10s
             timeout: 5s
             retries: 5
             start_period: 30s
         ports:
-            - "${DB_PORT:-5435}:5432"
+            - "5432:5432"
 
 networks:
     hris_network:
