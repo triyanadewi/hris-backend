@@ -1,0 +1,44 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [patch]
+  pull_request:
+    branches: [patch]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: hris_user
+          POSTGRES_PASSWORD: hris_password
+          POSTGRES_DB: hris_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U hris_user" --health-interval=10s --health-timeout=5s --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+
+      - name: Install dependencies
+        run: |
+          composer install --no-interaction --prefer-dist --optimize-autoloader
+          cp .env.example .env
+          php artisan key:generate
+          php artisan migrate --force
+
+      - name: Run tests
+        run: |
+          php artisan test --parallel --processes=4 --order-by=defects --coverage-text --coverage-clover=coverage.xml
+          if [ -f coverage.xml ]; then
+            echo "Coverage report generated."
+          else
+            echo "No coverage report generated."
+          fi

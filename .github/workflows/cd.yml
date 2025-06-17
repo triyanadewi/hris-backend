@@ -1,0 +1,138 @@
+name: Continuous Delivery
+
+on:
+  push:
+    branches: [patch]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Prepare environment file
+        run: |
+          # Copy .env.example as base template
+          cp .env.example .env
+
+          # Replace environment variables using sed - targeting only the key part
+          sed -i "s/^APP_NAME=.*/APP_NAME=HRIS/" .env
+          sed -i "s/^APP_ENV=.*/APP_ENV=production/" .env
+          sed -i "s/^APP_DEBUG=.*/APP_DEBUG=false/" .env
+          sed -i "s|^APP_URL=.*|APP_URL=${{ secrets.APP_URL }}|" .env
+
+          # Database configuration - preserve structure, change only values
+          sed -i "s/^DB_CONNECTION=.*/DB_CONNECTION=pgsql/" .env
+          sed -i "s/^DB_HOST=.*/DB_HOST=postgres/" .env
+          sed -i "s/^DB_PORT=.*/DB_PORT=5432/" .env
+          sed -i "s/^DB_DATABASE=.*/DB_DATABASE=${{ secrets.DB_DATABASE }}/" .env
+          sed -i "s/^DB_USERNAME=.*/DB_USERNAME=${{ secrets.DB_USERNAME }}/" .env
+          sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=${{ secrets.DB_PASSWORD }}/" .env
+
+          # Add PostgreSQL environment variables (append to end)
+          echo "" >> .env
+          echo "# PostgreSQL Docker Configuration" >> .env
+          echo "POSTGRES_DB=${{ secrets.DB_DATABASE }}" >> .env
+          echo "POSTGRES_USER=${{ secrets.DB_USERNAME }}" >> .env
+          echo "POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+
+          # Cache and session - only change if different
+          sed -i "s/^CACHE_STORE=.*/CACHE_STORE=database/" .env
+          sed -i "s/^SESSION_DRIVER=.*/SESSION_DRIVER=database/" .env
+          sed -i "s/^QUEUE_CONNECTION=.*/QUEUE_CONNECTION=database/" .env
+
+          # Logging
+          sed -i "s/^LOG_LEVEL=.*/LOG_LEVEL=error/" .env
+
+          # Mail configuration (only if secrets are provided)
+          if [ -n "${{ secrets.MAIL_MAILER }}" ]; then
+            sed -i "s/^MAIL_MAILER=.*/MAIL_MAILER=${{ secrets.MAIL_MAILER }}/" .env
+          fi
+          if [ -n "${{ secrets.MAIL_HOST }}" ]; then
+            sed -i "s/^MAIL_HOST=.*/MAIL_HOST=${{ secrets.MAIL_HOST }}/" .env
+          fi
+          if [ -n "${{ secrets.MAIL_PORT }}" ]; then
+            sed -i "s/^MAIL_PORT=.*/MAIL_PORT=${{ secrets.MAIL_PORT }}/" .env
+          fi
+          if [ -n "${{ secrets.MAIL_USERNAME }}" ]; then
+            sed -i "s/^MAIL_USERNAME=.*/MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}/" .env
+          fi
+          if [ -n "${{ secrets.MAIL_PASSWORD }}" ]; then
+            sed -i "s/^MAIL_PASSWORD=.*/MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}/" .env
+          fi
+          if [ -n "${{ secrets.MAIL_FROM_ADDRESS }}" ]; then
+            sed -i "s/^MAIL_FROM_ADDRESS=.*/MAIL_FROM_ADDRESS=\"${{ secrets.MAIL_FROM_ADDRESS }}\"/" .env
+          fi
+
+          # Display the modified .env for verification (excluding sensitive data)
+          echo "=== Environment Configuration ==="
+          grep -E "^(APP_|DB_CONNECTION|DB_HOST|DB_PORT|CACHE_|SESSION_|QUEUE_|LOG_)" .env
+
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd ./hris
+            git checkout origin/patch
+            git fetch origin patch
+            git pull origin patch
+
+            # Stopping and removing all containers, including orphaned
+            docker compose down --remove-orphans
+
+            # Force remove containers to avoid name conflict
+            docker rm -f hris-api || true
+            docker rm -f hris-postgres || true
+
+            # Clean up old images (optional)
+            docker image prune -f
+
+      - name: Copy environment file to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: ".env"
+          target: "./hris-backend/"
+
+      - name: Build and start containers
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd ./hris-backend
+
+            # Verify .env file exists
+            if [ -f .env ]; then
+              echo "✅ .env file found"
+              echo "=== .env Configuration ==="
+              grep -E "^(APP_|DB_CONNECTION|DB_HOST|DB_PORT)" .env
+            else
+              echo "❌ .env file not found!"
+              exit 1
+            fi
+
+            # Generate APP_KEY if not set
+            if ! grep -q "APP_KEY=base64:" .env; then
+              echo "Generating APP_KEY..."
+              docker run --rm -v $(pwd):/app -w /app php:8.2-cli php -r "echo 'APP_KEY=base64:' . base64_encode(random_bytes(32)) . PHP_EOL;" >> .env
+            fi
+
+            # Building and starting the containers
+            docker compose up -d --build
+
+            # Wait for containers to be ready
+            sleep 30
+
+            # Check container status
+            docker compose ps
+
+            # Check logs for any errors
+            docker compose logs --tail=50
