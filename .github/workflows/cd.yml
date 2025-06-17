@@ -24,7 +24,7 @@ jobs:
 
           # Database configuration - preserve structure, change only values
           sed -i "s/^DB_CONNECTION=.*/DB_CONNECTION=pgsql/" .env
-          sed -i "s/^DB_HOST=.*/DB_HOST=postgres/" .env
+          sed -i "s/^DB_HOST=.*/DB_HOST=host.docker.internal/" .env
           sed -i "s/^DB_PORT=.*/DB_PORT=5432/" .env
           sed -i "s/^DB_DATABASE=.*/DB_DATABASE=${{ secrets.DB_DATABASE }}/" .env
           sed -i "s/^DB_USERNAME=.*/DB_USERNAME=${{ secrets.DB_USERNAME }}/" .env
