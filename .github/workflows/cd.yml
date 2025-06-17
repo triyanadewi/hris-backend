@@ -67,7 +67,28 @@ jobs:
 
           # Display the modified .env for verification (excluding sensitive data)
           echo "=== Environment Configuration ==="
-          grep -E "^(APP_|DB_CONNECTION|DB_HOST|DB_PORT|CACHE_|SESSION_|QUEUE_|LOG_)" .env
+          echo "APP_NAME: $(grep '^APP_NAME=' .env)"
+          echo "APP_ENV: $(grep '^APP_ENV=' .env)"
+          echo "DB_CONNECTION: $(grep '^DB_CONNECTION=' .env)"
+          echo "DB_HOST: $(grep '^DB_HOST=' .env)"
+          echo "DB_PORT: $(grep '^DB_PORT=' .env)"
+          echo "DB_DATABASE: $(grep '^DB_DATABASE=' .env)"
+          echo "DB_USERNAME: $(grep '^DB_USERNAME=' .env)"
+          echo "POSTGRES_DB: $(grep '^POSTGRES_DB=' .env)"
+          echo "POSTGRES_USER: $(grep '^POSTGRES_USER=' .env)"
+          echo "=== Credential Verification ==="
+          if [ "$(grep '^DB_USERNAME=' .env | cut -d'=' -f2)" = "$(grep '^POSTGRES_USER=' .env | cut -d'=' -f2)" ]; then
+            echo "✅ DB_USERNAME matches POSTGRES_USER"
+          else
+            echo "❌ DB_USERNAME does not match POSTGRES_USER"
+            echo "DB_USERNAME: $(grep '^DB_USERNAME=' .env | cut -d'=' -f2)"
+            echo "POSTGRES_USER: $(grep '^POSTGRES_USER=' .env | cut -d'=' -f2)"
+          fi
+          if [ "$(grep '^DB_DATABASE=' .env | cut -d'=' -f2)" = "$(grep '^POSTGRES_DB=' .env | cut -d'=' -f2)" ]; then
+            echo "✅ DB_DATABASE matches POSTGRES_DB"
+          else
+            echo "❌ DB_DATABASE does not match POSTGRES_DB"
+          fi
 
       - name: Deploy to server via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -109,11 +130,31 @@ jobs:
           script: |
             cd ./hris-backend
 
-            # Verify .env file exists
+            # Verify .env file exists and show database configuration
             if [ -f .env ]; then
               echo "✅ .env file found"
-              echo "=== .env Configuration ==="
-              grep -E "^(APP_|DB_CONNECTION|DB_HOST|DB_PORT)" .env
+              echo "=== Database Configuration ==="
+              echo "DB_CONNECTION: $(grep '^DB_CONNECTION=' .env)"
+              echo "DB_HOST: $(grep '^DB_HOST=' .env)"
+              echo "DB_PORT: $(grep '^DB_PORT=' .env)"
+              echo "DB_DATABASE: $(grep '^DB_DATABASE=' .env)"
+              echo "DB_USERNAME: $(grep '^DB_USERNAME=' .env)"
+              echo "POSTGRES_DB: $(grep '^POSTGRES_DB=' .env)"
+              echo "POSTGRES_USER: $(grep '^POSTGRES_USER=' .env)"
+              
+              # Verify credentials match
+              DB_USER=$(grep '^DB_USERNAME=' .env | cut -d'=' -f2)
+              PG_USER=$(grep '^POSTGRES_USER=' .env | cut -d'=' -f2)
+              DB_NAME=$(grep '^DB_DATABASE=' .env | cut -d'=' -f2)
+              PG_DB=$(grep '^POSTGRES_DB=' .env | cut -d'=' -f2)
+              
+              if [ "$DB_USER" = "$PG_USER" ] && [ "$DB_NAME" = "$PG_DB" ]; then
+                echo "✅ Database credentials are consistent"
+              else
+                echo "❌ Database credential mismatch detected!"
+                echo "DB_USERNAME=$DB_USER vs POSTGRES_USER=$PG_USER"
+                echo "DB_DATABASE=$DB_NAME vs POSTGRES_DB=$PG_DB"
+              fi
             else
               echo "❌ .env file not found!"
               exit 1
@@ -132,7 +173,42 @@ jobs:
             sleep 30
 
             # Check container status
+            echo "=== Container Status ==="
             docker compose ps
 
+            # Wait for database to be ready
+            echo "=== Waiting for database to be ready ==="
+            timeout=60
+            while [ $timeout -gt 0 ]; do
+              if docker compose exec postgres pg_isready -U $(grep '^POSTGRES_USER=' .env | cut -d'=' -f2) -d $(grep '^POSTGRES_DB=' .env | cut -d'=' -f2) > /dev/null 2>&1; then
+                echo "✅ PostgreSQL is ready"
+                break
+              fi
+              echo "Waiting for PostgreSQL... ($timeout seconds remaining)"
+              sleep 5
+              timeout=$((timeout-5))
+            done
+
+            if [ $timeout -le 0 ]; then
+              echo "❌ PostgreSQL failed to become ready in time"
+              docker compose logs postgres
+              exit 1
+            fi
+
+            # Test database connection from Laravel
+            echo "=== Testing Laravel Database Connection ==="
+            if docker compose exec api php artisan migrate:status > /dev/null 2>&1; then
+              echo "✅ Laravel can connect to database"
+            else
+              echo "❌ Laravel cannot connect to database"
+              echo "=== Laravel Database Error ==="
+              docker compose exec api php artisan migrate:status
+              echo "=== PostgreSQL Logs ==="
+              docker compose logs postgres --tail=20
+              echo "=== Laravel Logs ==="
+              docker compose logs api --tail=20
+            fi
+
             # Check logs for any errors
+            echo "=== Recent Container Logs ==="
             docker compose logs --tail=50
