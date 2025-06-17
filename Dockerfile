@@ -36,7 +36,8 @@ RUN mkdir -p /var/www/html/storage/logs \
     && mkdir -p /var/www/html/storage/framework/sessions \
     && mkdir -p /var/www/html/storage/framework/testing \
     && mkdir -p /var/www/html/storage/framework/views \
-    && mkdir -p /var/www/html/bootstrap/cache
+    && mkdir -p /var/www/html/bootstrap/cache \
+    && touch /var/www/html/storage/logs/laravel.log
 
 RUN composer dump-autoload --optimize --no-scripts
 
@@ -51,7 +52,17 @@ RUN php artisan storage:link || echo "Storage link failed, continuing..."
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html \
     && chmod -R 775 /var/www/html/storage \
-    && chmod -R 775 /var/www/html/bootstrap/cache
+    && chmod -R 775 /var/www/html/bootstrap/cache \
+    && chmod 664 /var/www/html/storage/logs/laravel.log
+
+RUN echo "=== Verifying Permissions ===" \
+    && ls -la /var/www/html/storage/ \
+    && ls -la /var/www/html/bootstrap/ \
+    && ls -la /var/www/html/storage/logs/ \
+    && echo "=== Testing write permissions ===" \
+    && su www-data -s /bin/bash -c "touch /var/www/html/storage/logs/test.log" \
+    && su www-data -s /bin/bash -c "touch /var/www/html/bootstrap/cache/test.cache" \
+    && echo "Permissions test passed"
 
 USER www-data
 
