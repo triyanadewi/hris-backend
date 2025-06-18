@@ -41,8 +41,6 @@ RUN mkdir -p /var/www/html/storage/logs \
 
 RUN composer dump-autoload --optimize --no-scripts
 
-RUN if [ ! -f .env ]; then cp .env.example .env; fi
-
 RUN chmod +x artisan
 
 RUN php artisan key:generate --ansi || echo "Key generation failed, continuing..."

@@ -11,64 +11,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Prepare environment files
-        run: |
-          # Check required secrets are set
-          : "${{ secrets.DB_DATABASE }}" || { echo 'Missing secret: DB_DATABASE'; exit 1; }
-          : "${{ secrets.DB_USERNAME }}" || { echo 'Missing secret: DB_USERNAME'; exit 1; }
-          : "${{ secrets.DB_PASSWORD }}" || { echo 'Missing secret: DB_PASSWORD'; exit 1; }
-          : "${{ secrets.APP_URL }}" || { echo 'Missing secret: APP_URL'; exit 1; }
-
-          # Copy .env.example as base template for Laravel configuration
-          cp .env.example .env
-
-          # Laravel environment configuration
-          sed -i "s/^APP_NAME=.*/APP_NAME=HRIS/" .env
-          sed -i "s/^APP_ENV=.*/APP_ENV=production/" .env
-          sed -i "s/^APP_DEBUG=.*/APP_DEBUG=false/" .env
-          sed -i "s|^APP_URL=.*|APP_URL=${{ secrets.APP_URL }}|" .env
-
-          # Database connection configuration for Laravel
-          sed -i "s/^DB_CONNECTION=.*/DB_CONNECTION=pgsql/" .env
-          sed -i "s/^DB_HOST=.*/DB_HOST=postgres/" .env
-          sed -i "s/^DB_PORT=.*/DB_PORT=5432/" .env
-          sed -i "s/^DB_DATABASE=.*/DB_DATABASE=${{ secrets.DB_DATABASE }} /" .env
-          sed -i "s/^DB_USERNAME=.*/DB_USERNAME=${{ secrets.DB_USERNAME }} /" .env
-          sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=${{ secrets.DB_PASSWORD }} /" .env
-
-          # Cache and session configuration
-          sed -i "s/^CACHE_STORE=.*/CACHE_STORE=database/" .env
-          sed -i "s/^SESSION_DRIVER=.*/SESSION_DRIVER=database/" .env
-          sed -i "s/^QUEUE_CONNECTION=.*/QUEUE_CONNECTION=database/" .env
-
-          # Logging configuration
-          sed -i "s/^LOG_LEVEL=.*/LOG_LEVEL=error/" .env
-
-          # Mail configuration (only if secrets are provided)
-          [ -n "${{ secrets.MAIL_MAILER }}" ] && sed -i "s/^MAIL_MAILER=.*/MAIL_MAILER=${{ secrets.MAIL_MAILER }}/" .env
-          [ -n "${{ secrets.MAIL_HOST }}" ] && sed -i "s/^MAIL_HOST=.*/MAIL_HOST=${{ secrets.MAIL_HOST }}/" .env
-          [ -n "${{ secrets.MAIL_PORT }}" ] && sed -i "s/^MAIL_PORT=.*/MAIL_PORT=${{ secrets.MAIL_PORT }}/" .env
-          [ -n "${{ secrets.MAIL_USERNAME }}" ] && sed -i "s/^MAIL_USERNAME=.*/MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}/" .env
-          [ -n "${{ secrets.MAIL_PASSWORD }}" ] && sed -i "s/^MAIL_PASSWORD=.*/MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}/" .env
-          [ -n "${{ secrets.MAIL_FROM_ADDRESS }}" ] && sed -i "s/^MAIL_FROM_ADDRESS=.*/MAIL_FROM_ADDRESS=\"${{ secrets.MAIL_FROM_ADDRESS }}\"/" .env
-
-          # Create PostgreSQL environment file (.env.postgres)
-          printf '%s\n' \
-            "POSTGRES_DB=${{ secrets.DB_DATABASE }}" \
-            "POSTGRES_USER=${{ secrets.DB_USERNAME }}" \
-            "POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}" \
-            "POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C" \
-            > .env.postgres
-
-          # Consistency check (fail early if mismatch)
-          DB_USER=$(grep '^DB_USERNAME=' .env | cut -d'=' -f2 | xargs)
-          PG_USER=$(grep '^POSTGRES_USER=' .env.postgres | cut -d'=' -f2 | xargs)
-          DB_NAME=$(grep '^DB_DATABASE=' .env | cut -d'=' -f2 | xargs)
-          PG_DB=$(grep '^POSTGRES_DB=' .env.postgres | cut -d'=' -f2 | xargs)
-          [ "$DB_USER" = "$PG_USER" ] || { echo "DB_USERNAME and POSTGRES_USER do not match: $DB_USER vs $PG_USER"; exit 1; }
-          [ "$DB_NAME" = "$PG_DB" ] || { echo "DB_DATABASE and POSTGRES_DB do not match: $DB_NAME vs $PG_DB"; exit 1; }
-
-      - name: Deploy to server via SSH
+      - name: Update environment files on server (langsung sed di workflow)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -76,24 +19,28 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd ./hris-backend
-            git checkout origin/patch
-            git fetch origin patch
-            git pull origin patch
-            docker compose down --remove-orphans
-            docker rm -f hris-api || true
-            docker rm -f hris-postgres || true
-            docker image prune -f
+            sed -i "s/^APP_NAME=.*/APP_NAME=HRIS/" .env
+            sed -i "s/^APP_ENV=.*/APP_ENV=production/" .env
+            sed -i "s/^APP_DEBUG=.*/APP_DEBUG=false/" .env
+            sed -i "s|^APP_URL=.*|APP_URL=${{ secrets.APP_URL }}|" .env
+            sed -i "s/^DB_CONNECTION=.*/DB_CONNECTION=pgsql/" .env
+            sed -i "s/^DB_HOST=.*/DB_HOST=postgres/" .env
+            sed -i "s/^DB_PORT=.*/DB_PORT=5432/" .env
+            sed -i "s/^DB_DATABASE=.*/DB_DATABASE=${{ secrets.DB_DATABASE }}/" .env
+            sed -i "s/^DB_USERNAME=.*/DB_USERNAME=${{ secrets.DB_USERNAME }}/" .env
+            sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=${{ secrets.DB_PASSWORD }}/" .env
+            sed -i "s/^CACHE_STORE=.*/CACHE_STORE=database/" .env
+            sed -i "s/^SESSION_DRIVER=.*/SESSION_DRIVER=database/" .env
+            sed -i "s/^QUEUE_CONNECTION=.*/QUEUE_CONNECTION=database/" .env
+            sed -i "s/^LOG_LEVEL=.*/LOG_LEVEL=error/" .env
+            printf '%s\n' \
+              "POSTGRES_DB=${{ secrets.DB_DATABASE }}" \
+              "POSTGRES_USER=${{ secrets.DB_USERNAME }}" \
+              "POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}" \
+              "POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C" \
+              > .env.postgres
 
-      - name: Copy environment files to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          source: ".env,.env.postgres"
-          target: "./hris-backend/"
-
-      - name: Build and start containers
+      - name: Deploy containers and migrate
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -101,20 +48,24 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd ./hris-backend
-            [ -f .env ] || exit 1
-            [ -f .env.postgres ] || exit 1
-            DB_USER=$(grep '^DB_USERNAME=' .env | cut -d'=' -f2)
+
+            git checkout origin/main
+            git fetch origin main
+            git pull origin main
+
+            docker compose down -v --remove-orphans
+            docker image prune -af
+            docker volume prune -f
+            docker builder prune -af
+
+            docker compose build --no-cache
+            docker compose up -d
+
             PG_USER=$(grep '^POSTGRES_USER=' .env.postgres | cut -d'=' -f2)
-            DB_NAME=$(grep '^DB_DATABASE=' .env | cut -d'=' -f2)
             PG_DB=$(grep '^POSTGRES_DB=' .env.postgres | cut -d'=' -f2)
-            [ "$DB_USER" = "$PG_USER" ] || exit 1
-            [ "$DB_NAME" = "$PG_DB" ] || exit 1
-            if ! grep -q "^APP_KEY=base64:" .env; then
-              docker compose run --rm -e APP_ENV=production -v $(pwd):/app --workdir /app php php artisan key:generate --force
-            fi
-            docker compose up -d --build
-            sleep 30
+
             timeout=60
+
             while [ $timeout -gt 0 ]; do
               if docker compose exec postgres pg_isready -U $PG_USER -d $PG_DB > /dev/null 2>&1; then
                 break
@@ -122,13 +73,19 @@ jobs:
               sleep 5
               timeout=$((timeout-5))
             done
+
             [ $timeout -gt 0 ] || { docker compose logs postgres --tail=20; exit 1; }
-            if docker compose exec api php artisan migrate:status > /dev/null 2>&1; then
-              docker compose exec api php artisan migrate --force
+
+            if ! grep -q "^APP_KEY=base64:" .env; then
+              docker compose exec api php artisan key:generate --force
+            fi
+
+            if docker compose exec api php artisan migrate --force; then
+              echo "Migrate sukses"
             else
-              docker compose exec api php artisan migrate:status || true
-              docker compose logs postgres --tail=20
+              echo "Migrate gagal"
               docker compose logs api --tail=20
               exit 1
             fi
+
             docker compose ps

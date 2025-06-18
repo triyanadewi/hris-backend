@@ -25,6 +25,10 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\TopBarController;
 use App\Http\Controllers\Auth\EmployeeAuthController;
 
+Route::options('{any}', function () {
+    return response()->json(['message' => 'OK'], 200);
+})->where('any', '.*');
+
 Route::get('companies', [CompanyController::class, 'index']);
 Route::get('/company', [CompanyController::class, 'show']);
 Route::get('/position-branch-company', [App\Http\Controllers\DropDownController::class, 'getPositionBranchCompany']);

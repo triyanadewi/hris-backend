@@ -6,11 +6,14 @@ services:
             context: .
             dockerfile: Dockerfile
         container_name: hris-api
+        env_file:
+            - .env
         ports:
             - "8000:8000"
         volumes:
             - storage_data:/var/www/html/storage
             - cache_data:/var/www/html/bootstrap/cache
+            - ./.env:/var/www/html/.env
         networks:
             - hris_network
         restart: unless-stopped
@@ -29,8 +32,6 @@ services:
         container_name: hris-postgres
         env_file:
             - .env.postgres
-        environment:
-            - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
         volumes:
             - postgres_data:/var/lib/postgresql/data
         networks:

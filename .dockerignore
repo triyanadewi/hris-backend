@@ -3,8 +3,6 @@
 .env.development
 .env.local
 .env.testing
-.env.postgres
-.env
 secrets/
 
 # Keep these files
