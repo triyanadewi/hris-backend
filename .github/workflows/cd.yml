@@ -11,18 +11,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Prepare environment file
+      - name: Prepare environment files
         run: |
-          # Copy .env.example as base template
+          # Copy .env.example as base template for Laravel configuration
           cp .env.example .env
 
-          # Replace environment variables using sed - targeting only the key part
+          # Laravel environment configuration
           sed -i "s/^APP_NAME=.*/APP_NAME=HRIS/" .env
           sed -i "s/^APP_ENV=.*/APP_ENV=production/" .env
           sed -i "s/^APP_DEBUG=.*/APP_DEBUG=false/" .env
           sed -i "s|^APP_URL=.*|APP_URL=${{ secrets.APP_URL }}|" .env
 
-          # Database configuration - preserve structure, change only values
+          # Database connection configuration for Laravel
           sed -i "s/^DB_CONNECTION=.*/DB_CONNECTION=pgsql/" .env
           sed -i "s/^DB_HOST=.*/DB_HOST=postgres/" .env
           sed -i "s/^DB_PORT=.*/DB_PORT=5432/" .env
@@ -30,17 +30,12 @@ jobs:
           sed -i "s/^DB_USERNAME=.*/DB_USERNAME=hris/" .env
           sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=${{ secrets.DB_PASSWORD }}/" .env
 
-          # PostgreSQL Container Configuration - update the existing lines
-          sed -i "s/^POSTGRES_DB=.*/POSTGRES_DB=hris_db/" .env
-          sed -i "s/^POSTGRES_USER=.*/POSTGRES_USER=hris/" .env
-          sed -i "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}/" .env
-
-          # Cache and session - only change if different
+          # Cache and session configuration
           sed -i "s/^CACHE_STORE=.*/CACHE_STORE=database/" .env
           sed -i "s/^SESSION_DRIVER=.*/SESSION_DRIVER=database/" .env
           sed -i "s/^QUEUE_CONNECTION=.*/QUEUE_CONNECTION=database/" .env
 
-          # Logging
+          # Logging configuration
           sed -i "s/^LOG_LEVEL=.*/LOG_LEVEL=error/" .env
 
           # Mail configuration (only if secrets are provided)
@@ -63,8 +58,17 @@ jobs:
             sed -i "s/^MAIL_FROM_ADDRESS=.*/MAIL_FROM_ADDRESS=\"${{ secrets.MAIL_FROM_ADDRESS }}\"/" .env
           fi
 
-          # Display the modified .env for verification (excluding sensitive data)
-          echo "=== Environment Configuration ==="
+          # Create PostgreSQL environment file (.env.postgres)
+          cat > .env.postgres << EOF
+          # PostgreSQL Container Environment Variables
+          POSTGRES_DB=${{ secrets.DB_DATABASE }}
+          POSTGRES_USER=${{ secrets.DB_USERNAME }}
+          POSTGRES_PASSWORD=${{ secrets.DB_PASSWORD }}
+          POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+          EOF
+
+          # Display the configuration for verification (excluding sensitive data)
+          echo "=== Laravel Environment Configuration (.env) ==="
           echo "APP_NAME: $(grep '^APP_NAME=' .env)"
           echo "APP_ENV: $(grep '^APP_ENV=' .env)"
           echo "DB_CONNECTION: $(grep '^DB_CONNECTION=' .env)"
@@ -72,20 +76,29 @@ jobs:
           echo "DB_PORT: $(grep '^DB_PORT=' .env)"
           echo "DB_DATABASE: $(grep '^DB_DATABASE=' .env)"
           echo "DB_USERNAME: $(grep '^DB_USERNAME=' .env)"
-          echo "POSTGRES_DB: $(grep '^POSTGRES_DB=' .env)"
-          echo "POSTGRES_USER: $(grep '^POSTGRES_USER=' .env)"
-          echo "=== Credential Verification ==="
-          if [ "$(grep '^DB_USERNAME=' .env | cut -d'=' -f2)" = "$(grep '^POSTGRES_USER=' .env | cut -d'=' -f2)" ]; then
-            echo "✅ DB_USERNAME matches POSTGRES_USER"
+
+          echo "=== PostgreSQL Environment Configuration (.env.postgres) ==="
+          echo "POSTGRES_DB: $(grep '^POSTGRES_DB=' .env.postgres)"
+          echo "POSTGRES_USER: $(grep '^POSTGRES_USER=' .env.postgres)"
+
+          echo "=== Credential Consistency Check ==="
+          DB_USER=$(grep '^DB_USERNAME=' .env | cut -d'=' -f2)
+          PG_USER=$(grep '^POSTGRES_USER=' .env.postgres | cut -d'=' -f2)
+          DB_NAME=$(grep '^DB_DATABASE=' .env | cut -d'=' -f2)
+          PG_DB=$(grep '^POSTGRES_DB=' .env.postgres | cut -d'=' -f2)
+
+          if [ "$DB_USER" = "$PG_USER" ]; then
+            echo "✅ DB_USERNAME matches POSTGRES_USER ($DB_USER)"
           else
-            echo "❌ DB_USERNAME does not match POSTGRES_USER"
-            echo "DB_USERNAME: $(grep '^DB_USERNAME=' .env | cut -d'=' -f2)"
-            echo "POSTGRES_USER: $(grep '^POSTGRES_USER=' .env | cut -d'=' -f2)"
+            echo "❌ DB_USERNAME ($DB_USER) does not match POSTGRES_USER ($PG_USER)"
+            exit 1
           fi
-          if [ "$(grep '^DB_DATABASE=' .env | cut -d'=' -f2)" = "$(grep '^POSTGRES_DB=' .env | cut -d'=' -f2)" ]; then
-            echo "✅ DB_DATABASE matches POSTGRES_DB"
+
+          if [ "$DB_NAME" = "$PG_DB" ]; then
+            echo "✅ DB_DATABASE matches POSTGRES_DB ($DB_NAME)"
           else
-            echo "❌ DB_DATABASE does not match POSTGRES_DB"
+            echo "❌ DB_DATABASE ($DB_NAME) does not match POSTGRES_DB ($PG_DB)"
+            exit 1
           fi
 
       - name: Deploy to server via SSH
@@ -95,7 +108,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd ./hris
+            cd ./hris-backend
             git checkout origin/patch
             git fetch origin patch
             git pull origin patch
@@ -110,13 +123,13 @@ jobs:
             # Clean up old images (optional)
             docker image prune -f
 
-      - name: Copy environment file to server
+      - name: Copy environment files to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: ".env"
+          source: ".env,.env.postgres"
           target: "./hris-backend/"
 
       - name: Build and start containers
@@ -128,33 +141,45 @@ jobs:
           script: |
             cd ./hris-backend
 
-            # Verify .env file exists and show database configuration
+            # Verify both environment files exist
             if [ -f .env ]; then
               echo "✅ .env file found"
-              echo "=== Database Configuration ==="
-              echo "DB_CONNECTION: $(grep '^DB_CONNECTION=' .env)"
-              echo "DB_HOST: $(grep '^DB_HOST=' .env)"
-              echo "DB_PORT: $(grep '^DB_PORT=' .env)"
-              echo "DB_DATABASE: $(grep '^DB_DATABASE=' .env)"
-              echo "DB_USERNAME: $(grep '^DB_USERNAME=' .env)"
-              echo "POSTGRES_DB: $(grep '^POSTGRES_DB=' .env)"
-              echo "POSTGRES_USER: $(grep '^POSTGRES_USER=' .env)"
-              
-              # Verify credentials match
-              DB_USER=$(grep '^DB_USERNAME=' .env | cut -d'=' -f2)
-              PG_USER=$(grep '^POSTGRES_USER=' .env | cut -d'=' -f2)
-              DB_NAME=$(grep '^DB_DATABASE=' .env | cut -d'=' -f2)
-              PG_DB=$(grep '^POSTGRES_DB=' .env | cut -d'=' -f2)
-              
-              if [ "$DB_USER" = "$PG_USER" ] && [ "$DB_NAME" = "$PG_DB" ]; then
-                echo "✅ Database credentials are consistent"
-              else
-                echo "❌ Database credential mismatch detected!"
-                echo "DB_USERNAME=$DB_USER vs POSTGRES_USER=$PG_USER"
-                echo "DB_DATABASE=$DB_NAME vs POSTGRES_DB=$PG_DB"
-              fi
             else
               echo "❌ .env file not found!"
+              exit 1
+            fi
+
+            if [ -f .env.postgres ]; then
+              echo "✅ .env.postgres file found"
+            else
+              echo "❌ .env.postgres file not found!"
+              exit 1
+            fi
+
+            # Display environment configuration
+            echo "=== Laravel Database Configuration (.env) ==="
+            echo "DB_CONNECTION: $(grep '^DB_CONNECTION=' .env)"
+            echo "DB_HOST: $(grep '^DB_HOST=' .env)"
+            echo "DB_PORT: $(grep '^DB_PORT=' .env)"
+            echo "DB_DATABASE: $(grep '^DB_DATABASE=' .env)"
+            echo "DB_USERNAME: $(grep '^DB_USERNAME=' .env)"
+
+            echo "=== PostgreSQL Configuration (.env.postgres) ==="
+            echo "POSTGRES_DB: $(grep '^POSTGRES_DB=' .env.postgres)"
+            echo "POSTGRES_USER: $(grep '^POSTGRES_USER=' .env.postgres)"
+
+            # Verify credentials consistency between files
+            DB_USER=$(grep '^DB_USERNAME=' .env | cut -d'=' -f2)
+            PG_USER=$(grep '^POSTGRES_USER=' .env.postgres | cut -d'=' -f2)
+            DB_NAME=$(grep '^DB_DATABASE=' .env | cut -d'=' -f2)
+            PG_DB=$(grep '^POSTGRES_DB=' .env.postgres | cut -d'=' -f2)
+
+            if [ "$DB_USER" = "$PG_USER" ] && [ "$DB_NAME" = "$PG_DB" ]; then
+              echo "✅ Database credentials are consistent between .env and .env.postgres"
+            else
+              echo "❌ Database credential mismatch detected!"
+              echo "Laravel DB_USERNAME=$DB_USER vs PostgreSQL POSTGRES_USER=$PG_USER"
+              echo "Laravel DB_DATABASE=$DB_NAME vs PostgreSQL POSTGRES_DB=$PG_DB"
               exit 1
             fi
 
@@ -165,6 +190,7 @@ jobs:
             fi
 
             # Building and starting the containers
+            echo "=== Starting Docker Compose services ==="
             docker compose up -d --build
 
             # Wait for containers to be ready
@@ -174,11 +200,11 @@ jobs:
             echo "=== Container Status ==="
             docker compose ps
 
-            # Wait for database to be ready
-            echo "=== Waiting for database to be ready ==="
+            # Wait for database to be ready using .env.postgres credentials
+            echo "=== Waiting for PostgreSQL to be ready ==="
             timeout=60
             while [ $timeout -gt 0 ]; do
-              if docker compose exec postgres pg_isready -U $(grep '^POSTGRES_USER=' .env | cut -d'=' -f2) -d $(grep '^POSTGRES_DB=' .env | cut -d'=' -f2) > /dev/null 2>&1; then
+              if docker compose exec postgres pg_isready -U $PG_USER -d $PG_DB > /dev/null 2>&1; then
                 echo "✅ PostgreSQL is ready"
                 break
               fi
@@ -189,24 +215,30 @@ jobs:
 
             if [ $timeout -le 0 ]; then
               echo "❌ PostgreSQL failed to become ready in time"
-              docker compose logs postgres
+              echo "=== PostgreSQL Container Logs ==="
+              docker compose logs postgres --tail=20
               exit 1
             fi
 
             # Test database connection from Laravel
             echo "=== Testing Laravel Database Connection ==="
             if docker compose exec api php artisan migrate:status > /dev/null 2>&1; then
-              echo "✅ Laravel can connect to database"
+              echo "✅ Laravel can connect to database successfully"
             else
               echo "❌ Laravel cannot connect to database"
-              echo "=== Laravel Database Error ==="
-              docker compose exec api php artisan migrate:status
-              echo "=== PostgreSQL Logs ==="
+              echo "=== Laravel Database Connection Error ==="
+              docker compose exec api php artisan migrate:status || true
+              echo "=== PostgreSQL Container Logs ==="
               docker compose logs postgres --tail=20
-              echo "=== Laravel Logs ==="
+              echo "=== Laravel Container Logs ==="
               docker compose logs api --tail=20
+              exit 1
             fi
 
-            # Check logs for any errors
-            echo "=== Recent Container Logs ==="
-            docker compose logs --tail=50
+            # Run migrations if everything is working
+            echo "=== Running Database Migrations ==="
+            docker compose exec api php artisan migrate --force
+
+            # Check final container status
+            echo "=== Final Container Status ==="
+            docker compose ps

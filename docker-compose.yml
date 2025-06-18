@@ -27,11 +27,8 @@ services:
     postgres:
         image: postgres:15-alpine
         container_name: hris-postgres
-        environment:
-            - POSTGRES_DB=${POSTGRES_DB:-hris_db}
-            - POSTGRES_USER=${POSTGRES_USER:-hris_user}
-            - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-hris_password}
-            - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+        env_file:
+            - .env.postgres
         volumes:
             - postgres_data:/var/lib/postgresql/data
         networks:
@@ -39,10 +36,7 @@ services:
         restart: unless-stopped
         healthcheck:
             test:
-                [
-                    "CMD-SHELL",
-                    "pg_isready -U ${POSTGRES_USER:-hris_user} -d ${POSTGRES_DB:-hris_db}",
-                ]
+                ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
             interval: 10s
             timeout: 5s
             retries: 5
