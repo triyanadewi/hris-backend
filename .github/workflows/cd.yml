@@ -49,14 +49,15 @@ jobs:
           script: |
             cd ./hris-backend
 
-            git checkout origin/main
-            git fetch origin main
-            git pull origin main
+            git checkout main
 
-            docker compose down -v --remove-orphans
-            docker image prune -af
-            docker volume prune -f
-            docker builder prune -af
+            if ! git pull origin main; then
+              git pull --rebase origin main
+            fi
+
+            docker rm -f hris-api
+            docker rmi -f hris-api:latest || true
+            docker builder prune -f
 
             docker compose build --no-cache
             docker compose up -d
@@ -78,6 +79,22 @@ jobs:
 
             if ! grep -q "^APP_KEY=base64:" .env; then
               docker compose exec api php artisan key:generate --force
+            fi
+
+            if docker compose exec api php artisan config:cache; then
+              echo "Config cache sukses"
+            else
+              echo "Config cache gagal"
+              docker compose logs api --tail=20
+              exit 1
+            fi
+
+            if docker compose exec api php artisan route:cache; then
+              echo "Route cache sukses"
+            else
+              echo "Route cache gagal"
+              docker compose logs api --tail=20
+              exit 1
             fi
 
             if docker compose exec api php artisan migrate --force; then
