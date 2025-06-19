@@ -80,6 +80,22 @@ jobs:
               docker compose exec api php artisan key:generate --force
             fi
 
+            if docker compose exec api php artisan config:cache; then
+              echo "Config cache sukses"
+            else
+              echo "Config cache gagal"
+              docker compose logs api --tail=20
+              exit 1
+            fi
+
+            if docker compose exec api php artisan route:cache; then
+              echo "Route cache sukses"
+            else
+              echo "Route cache gagal"
+              docker compose logs api --tail=20
+              exit 1
+            fi
+
             if docker compose exec api php artisan migrate --force; then
               echo "Migrate sukses"
             else
