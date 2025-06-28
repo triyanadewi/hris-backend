@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
             LetterFormatsTableSeeder::class,
             // CompaniesSeeder::class,
             UserSeeder::class,
+            AdminSeeder::class,
             PackagesSeeder::class,
             PackageBenefitsSeeder::class,
 

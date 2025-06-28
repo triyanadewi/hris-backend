@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -24,6 +23,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role', // Make sure 'role' is fillable
+        'isProfileCompany',
     ];
 
     /**
@@ -43,7 +43,6 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
-        'password' => 'hashed',
     ];
 
     /**
@@ -53,11 +52,15 @@ class User extends Authenticatable
     {
         return $this->hasOne(Employee::class);
     }
-
     
     public function company()
     {
         return $this->belongsTo(Company::class);
     }
-}
 
+    public function admin()
+    {
+        return $this->hasOne(Admin::class);
+    }
+
+}

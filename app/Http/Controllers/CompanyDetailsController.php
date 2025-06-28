@@ -10,6 +10,7 @@ use App\Models\PackageBenefit;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 
 class CompanyDetailsController extends Controller
@@ -91,6 +92,11 @@ class CompanyDetailsController extends Controller
                         }
                     }
                 }
+                /** @var \App\Models\User $user */
+                $user = Auth::user();
+                $user->isProfileCompany = true;
+                $user->save();
+
             });
 
             return response()->json([
