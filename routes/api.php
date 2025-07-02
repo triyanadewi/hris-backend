@@ -59,9 +59,14 @@ Route::prefix('admin')->group(function () {
         Route::delete('/admins/{id}', [AdminController::class, 'destroy']);
         Route::prefix('checkclocks')->group(function () {
             Route::get('/', [CheckClocksController::class, 'index']);
+            Route::get('/filter', [CheckClocksController::class, 'indexWithFilters']);
+            Route::get('/employees', [CheckClocksController::class, 'getEmployees']);
+            Route::get('/export', [CheckClockExportController::class, 'export']);
+            Route::options('/export', function () {
+                return response('', 200);
+            });
             Route::post('/', [CheckClocksController::class, 'store']);
             Route::get('/{id}', [CheckClocksController::class, 'show']);
-            Route::get('/export', [CheckClockExportController::class, 'export']);
             // Additional routes for approval
             Route::put('/{id}/approve', [CheckClocksController::class, 'approve']);
             Route::put('/{id}/reject', [CheckClocksController::class, 'reject']);
@@ -102,6 +107,7 @@ Route::prefix('admin')->group(function () {
         Route::prefix('company-details')->group(function () {
             Route::get('/subscription-info', [CompanyDetailsController::class, 'getSubscriptionInfo']);
             Route::get('/branches', [CompanyDetailsController::class, 'getBranches']);
+            Route::get('/', [CompanyDetailsController::class, 'getBranches']); // Add this for compatibility
             Route::post('/', [CompanyDetailsController::class, 'store']);
         });
 
@@ -180,6 +186,7 @@ Route::prefix('employee')->group(function () {
         // Karyawan: Clock in/out
         Route::prefix('check-clocks')->group(function () {
             Route::get('/', [CheckClocksController::class, 'index']);
+            Route::get('/employees', [CheckClocksController::class, 'getEmployees']);
             Route::post('/', [CheckClocksController::class, 'store']);
             Route::put('/{id}', [CheckClocksController::class, 'update']);
             Route::delete('/{id}', [CheckClocksController::class, 'destroy']);

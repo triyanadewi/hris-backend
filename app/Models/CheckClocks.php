@@ -13,9 +13,9 @@ class CheckClocks extends Model
     protected $table = 'check_clocks';
 
     protected $fillable = [
-        'id',
         'employee_id',
         'ck_settings_id',
+        'branch_id',
         'check_clock_type',
         'check_clock_date',
         'check_clock_time',
@@ -50,5 +50,11 @@ class CheckClocks extends Model
     public function checkClockSettings()
     {
         return $this->belongsTo(CheckClockSettings::class, 'ck_settings_id');
+    }
+
+    // Relasi ke Branch
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class, 'branch_id');
     }
 }

@@ -4,7 +4,8 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
+use App\Models\Branch;
+use App\Models\Company;
 
 class BranchesSeeder extends Seeder
 {
@@ -13,39 +14,50 @@ class BranchesSeeder extends Seeder
      */
     public function run(): void
     {
-        DB::table('branches')->insert([
+        $companies = Company::all();
+        
+        if ($companies->isEmpty()) {
+            $this->command->info('Please run CompaniesSeeder first.');
+            return;
+        }
+
+        $branches = [
             [
-                'id' => 1,
-                'company_id' => 1,
-                'name' => 'Bekasi 1',
-                'branch_address' => 'Mawar Raya Street No. 123, Bekasi, West Java',
-                'branch_phone' => '081234567891',
-                'branch_phone_backup' => '081234567890',
+                'name' => 'Jakarta Head Office',
+                'branch_address' => 'Jl. Sudirman No. 123, Jakarta Pusat',
+                'branch_phone' => '021-12345678',
+                'branch_phone_backup' => '021-12345679',
+                'description' => 'Main headquarters in Jakarta',
             ],
             [
-                'id' => 2,
-                'company_id' => 1,
-                'name' => 'Surabaya 1',
-                'branch_address' => 'Patimura Street No. 456, Surabaya, East Java',
-                'branch_phone' => '081234567892',
-                'branch_phone_backup' => '081234567894',
+                'name' => 'Surabaya Branch',
+                'branch_address' => 'Jl. Pemuda No. 456, Surabaya',
+                'branch_phone' => '031-87654321',
+                'branch_phone_backup' => '031-87654322',
+                'description' => 'Branch office in Surabaya',
             ],
             [
-                'id' => 3,
-                'company_id' => 1,
-                'name' => 'Surabaya 2',
-                'branch_address' => 'Sukamaju Street No. 789, Surabaya, East Java',
-                'branch_phone' => '081234567893',
-                'branch_phone_backup' => '081234567895',
+                'name' => 'Bandung Branch',
+                'branch_address' => 'Jl. Asia Afrika No. 789, Bandung',
+                'branch_phone' => '022-11223344',
+                'branch_phone_backup' => '022-11223345',
+                'description' => 'Branch office in Bandung',
             ],
             [
-                'id' => 4,
-                'company_id' => 1,
-                'name' => 'Makassar 1',
-                'branch_address' => 'Cempaka Street No. 101, Makassar, South Sulawesi',
-                'branch_phone' => '081234567896',
-                'branch_phone_backup' => '081234567897',
+                'name' => 'Medan Branch',
+                'branch_address' => 'Jl. Merdeka No. 321, Medan',
+                'branch_phone' => '061-55667788',
+                'branch_phone_backup' => '061-55667789',
+                'description' => 'Branch office in Medan',
             ]
-        ]);
+        ];
+
+        foreach ($branches as $branchData) {
+            Branch::create(array_merge($branchData, [
+                'company_id' => $companies->random()->id
+            ]));
+        }
+
+        $this->command->info('Branches seeded successfully!');
     }
 }

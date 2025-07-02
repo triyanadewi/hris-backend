@@ -16,44 +16,39 @@ class AdminSeeder extends Seeder
      */
     public function run(): void
     {
-        // Get existing admin user from UserSeeder
-        $adminUser1 = User::where('email', 'admin@example.com')->where('role', 'admin')->first();
+        // Get all admin users from UserSeeder
+        $adminUsers = User::where('role', 'admin')->get();
         
-        // Create additional admin user using DB::table to avoid auto-increment conflict
-        $adminUser2 = User::where('email', 'test@admin.com')->first();
-        if (!$adminUser2) {
-            DB::table('users')->insert([
-                'name' => 'Test Admin',
-                'email' => 'test@admin.com',
-                'password' => Hash::make('admin123'),
-                'role' => 'admin',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-            $adminUser2 = User::find(3);
+        if ($adminUsers->isEmpty()) {
+            $this->command->info('No admin users found. Please run UserSeeder first.');
+            return;
         }
 
-        // Create admin profiles for existing admin users
-        if ($adminUser1) {
-            $admin1 = Admin::where('user_id', $adminUser1->id)->first();
-            if (!$admin1) {
+        // Create admin profiles for all admin users
+        foreach ($adminUsers as $adminUser) {
+            // Check if admin profile already exists
+            $existingAdmin = Admin::where('user_id', $adminUser->id)->first();
+            
+            if (!$existingAdmin) {
                 Admin::create([
-                    'user_id' => $adminUser1->id,
-                    'phone_number' => '081234567890',
-                    'profile_photo' => null,
+                    'user_id' => $adminUser->id,
+                    'phone_number' => $this->generatePhoneNumber(),
+                    'profile_photo' => 'admin_photos/admin_' . $adminUser->id . '.jpg',
                 ]);
             }
         }
 
-        if ($adminUser2) {
-            $admin2 = Admin::where('user_id', $adminUser2->id)->first();
-            if (!$admin2) {
-                Admin::create([
-                    'user_id' => $adminUser2->id,
-                    'phone_number' => '081234567891',
-                    'profile_photo' => null,
-                ]);
-            }
-        }
+        $this->command->info('Admin profiles created successfully!');
+    }
+
+    /**
+     * Generate a random Indonesian phone number
+     */
+    private function generatePhoneNumber()
+    {
+        $prefixes = ['0811', '0812', '0813', '0821', '0822', '0823', '0851', '0852', '0853'];
+        $prefix = $prefixes[array_rand($prefixes)];
+        $number = $prefix . rand(1000000, 9999999);
+        return $number;
     }
 }

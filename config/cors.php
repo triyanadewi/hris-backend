@@ -16,7 +16,12 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    'exposed_headers' => [
+        'Content-Disposition',
+        'Content-Type',
+        'Content-Length',
+        'X-Filename'
+    ],
 
     'max_age' => 0,
 

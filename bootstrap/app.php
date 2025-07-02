@@ -22,6 +22,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
+            'cors' => \App\Http\Middleware\CorsMiddleware::class,
+        ]);
+        
+        // Add CORS middleware globally to api routes
+        $middleware->api(prepend: [
+            \App\Http\Middleware\CorsMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

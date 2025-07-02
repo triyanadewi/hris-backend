@@ -21,16 +21,24 @@ class DatabaseSeeder extends Seeder
         // ]);
 
         $this->call([
-            LetterFormatsTableSeeder::class,
-            // CompaniesSeeder::class,
+            CompaniesSeeder::class,
             UserSeeder::class,
             AdminSeeder::class,
+            BranchesSeeder::class,
+            DivisionsSeeder::class,
+            PositionsSeeder::class,
+            EmployeesSeeder::class,
+            AchievementsSeeder::class,
+            LetterFormatsTableSeeder::class,
+            LettersSeeder::class,
+            CheckClockSettingsTableSeeder::class,
+            CheckClockSettingTimesTableSeeder::class,
+            CheckClocksTableSeeder::class,
+            SalariesSeeder::class,
             PackagesSeeder::class,
             PackageBenefitsSeeder::class,
-
-            // BranchesSeeder::class,
-            // DivisionsSeeder::class,
-            // PositionsSeeder::class,
+            OrdersSeeder::class,
+            SubscriptionsSeeder::class,
         ]);
 
     }

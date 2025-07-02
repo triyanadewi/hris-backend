@@ -145,54 +145,86 @@ return new class extends Migration
             $table->softDeletes();
         });
 
-
         Schema::create('check_clock_settings', function (Blueprint $table) {
             $table->id();
-            // $table->string('name');
-            // $table->enum('type', ['WFO', 'WFA']);
-            $table->decimal('latitude', 10, 8)->nullable(); // lokasi titik check-in
+            
+            // Lokasi presensi milik perusahaan & cabang (branch_id nullable = head office)
+            $table->foreignId('company_id')->constrained()->onDelete('cascade');
+            $table->foreignId('branch_id')->nullable()->constrained('branches')->onDelete('cascade');
+            
+            // Nama lokasi dan koordinat
+            $table->string('location_name');
+            $table->decimal('latitude', 10, 8)->nullable();
             $table->decimal('longitude', 11, 8)->nullable();
-            $table->integer('radius')->nullable(); // dalam meter
+            $table->integer('radius')->nullable(); // radius dalam meter
+            
             $table->timestamps();
             $table->softDeletes();
+            
+            // Prevent duplicate setting per branch
+            $table->unique(['company_id', 'branch_id'], 'uniq_ck_setting_location');
         });
 
         Schema::create('check_clock_setting_times', function (Blueprint $table) {
             $table->id();
+            
+            // Setting waktu berdasarkan lokasi tertentu
             $table->foreignId('ck_settings_id')->constrained('check_clock_settings')->onDelete('cascade');
             $table->enum('day', ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']);
             
-            // Pengaturan waktu clock in
-            $table->time('clock_in_start'); // jam 07:00 - waktu paling awal bisa clock in
-            $table->time('clock_in_end'); // jam 09:00 - waktu paling akhir bisa clock in
-            $table->time('clock_in_on_time_limit'); // jam 08:00 - setelah ini dianggap Late
+            // Clock in
+            $table->time('clock_in_start');         // contoh: 07:00
+            $table->time('clock_in_end');           // contoh: 09:00
+            $table->time('clock_in_on_time_limit'); // contoh: 08:00 (setelah ini status "Late")
             
-            // Pengaturan waktu clock out
-            $table->time('clock_out_start'); // jam 17:00 - waktu paling awal bisa clock out
-            $table->time('clock_out_end'); // jam 19:00 - waktu paling akhir bisa clock out
+            // Clock out
+            $table->time('clock_out_start');        // contoh: 17:00
+            $table->time('clock_out_end');          // contoh: 19:00
             
             $table->boolean('work_day')->default(true); // apakah hari kerja?
+
             $table->timestamps();
             $table->softDeletes();
+
+            // Prevent duplicate setting untuk hari tertentu
+            $table->unique(['ck_settings_id', 'day'], 'uniq_setting_day');
         });
 
         Schema::create('check_clocks', function (Blueprint $table) {
             $table->id();
+
+            // Presensi oleh employee tertentu
             $table->foreignId('employee_id')->constrained('employees')->onDelete('cascade');
+            
+            // Setting yang digunakan (lokasi + aturan waktu)
             $table->foreignId('ck_settings_id')->nullable()->constrained('check_clock_settings')->onDelete('set null');
+            $table->foreignId('branch_id')->nullable()->constrained('branches')->onDelete('set null');
+            
+            // Jenis presensi
             $table->enum('check_clock_type', ['check-in', 'check-out', 'annual-leave', 'sick-leave', 'absent']);
-            $table->date('check_clock_date'); // tanggal presensi
-            $table->time('check_clock_time'); // waktu presensi
-            $table->time('check_out_time');
-            $table->date('start_date')->nullable(); // Add start date for leave periods
+            
+            // Waktu presensi
+            $table->date('check_clock_date');
+            $table->time('check_clock_time');
+            $table->time('check_out_time')->nullable();
+            
+            // Jika jenisnya cuti/libur
+            $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();
+            
+            // Status presensi
             $table->enum('status', ['On Time', 'Late', 'Absent', 'Annual Leave', 'Sick Leave', 'Waiting Approval', '-'])->nullable();
-            $table->boolean('approved')->nullable(); // untuk absensi manual yang perlu persetujuan
-            $table->string('location')->nullable(); // nama lokasi (jika WFO)
-            $table->string('address')->nullable(); // alamat lengkap (jika tersedia)
-            $table->decimal('latitude', 10, 8)->nullable(); // lokasi aktual
+            $table->boolean('approved')->nullable(); // manual approve jika diperlukan
+            
+            // Lokasi aktual presensi
+            $table->string('location')->nullable();  // lokasi dari front-end / nama lokasi
+            $table->string('address')->nullable();   // alamat GPS reverse-geocoding
+            $table->decimal('latitude', 10, 8)->nullable();
             $table->decimal('longitude', 11, 8)->nullable();
-            $table->string('photo')->nullable(); // foto bukti presensi (jika pakai)
+            
+            // Foto presensi (opsional)
+            $table->string('photo')->nullable();
+
             $table->timestamps();
             $table->softDeletes();
         });
